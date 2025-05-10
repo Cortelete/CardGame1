@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Masters - Collectible Card Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .card {
+            perspective: 1000px;
+            transition: transform 0.5s;
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.8s;
+        }
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .card-back {
+            transform: rotateY(180deg);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .stat-bar {
+            height: 10px;
+            border-radius: 5px;
+            background: linear-gradient(90deg, #f12711, #f5af19);
+        }
+        .booster-pack {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .card-rarity-common { border: 3px solid #b0b0b0; }
+        .card-rarity-uncommon { border: 3px solid #27ae60; }
+        .card-rarity-rare { border: 3px solid #3498db; }
+        .card-rarity-epic { border: 3px solid #9b59b6; }
+        .card-rarity-legendary { border: 3px solid #f1c40f; box-shadow: 0 0 15px #f1c40f; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <!-- Login Screen -->
+        <div id="login-screen" class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-indigo-600">Card Masters</h1>
+                <p class="text-gray-600">Collect, battle, and trade amazing cards!</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="username">Username</label>
+                    <input id="username" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter your username">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Password</label>
+                    <input id="password" type="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter your password">
+                </div>
+                <div class="flex items-center justify-between">
+                    <button id="login-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        Login
+                    </button>
+                    <button id="register-btn" class="text-indigo-600 hover:text-indigo-800 font-bold">
+                        Register
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Game Screen (hidden initially) -->
+        <div id="game-screen" class="hidden">
+            <!-- Navigation -->
+            <nav class="bg-indigo-600 text-white p-4 rounded-lg mb-8 flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Card Masters</h1>
+                <div class="flex items-center space-x-4">
+                    <span id="user-greeting" class="font-medium"></span>
+                    <span id="coins-display" class="bg-yellow-500 text-yellow-900 font-bold px-3 py-1 rounded-full flex items-center">
+                        <i class="fas fa-coins mr-1"></i> <span id="coins-count">0</span>
+                    </span>
+                    <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded">
+                        Logout
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Game Tabs -->
+            <div class="mb-8">
+                <div class="flex border-b border-gray-200">
+                    <button data-tab="collection" class="tab-btn py-2 px-4 font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300">My Collection</button>
+                    <button data-tab="battle" class="tab-btn py-2 px-4 font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300">Battle</button>
+                    <button data-tab="shop" class="tab-btn py-2 px-4 font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300">Shop</button>
+                    <button data-tab="trades" class="tab-btn py-2 px-4 font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300">Trades</button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="tab-content">
+                <!-- Collection Tab -->
+                <div id="collection-tab" class="tab-panel">
+                    <div class="mb-6 flex justify-between items-center">
+                        <h2 class="text-xl font-bold text-gray-800">My Card Collection</h2>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-600">Filter:</span>
+                            <select id="collection-filter" class="border border-gray-300 rounded px-2 py-1">
+                                <option value="all">All Cards</option>
+                                <option value="common">Common</option>
+                                <option value="uncommon">Uncommon</option>
+                                <option value="rare">Rare</option>
+                                <option value="epic">Epic</option>
+                                <option value="legendary">Legendary</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="collection-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        <!-- Cards will be displayed here -->
+                    </div>
+                </div>
+
+                <!-- Battle Tab -->
+                <div id="battle-tab" class="tab-panel hidden">
+                    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">Battle Arena</h2>
+                        <div class="flex flex-col md:flex-row justify-between items-center mb-6">
+                            <div class="w-full md:w-1/3 mb-4 md:mb-0">
+                                <h3 class="font-medium text-gray-700 mb-2">Your Card</h3>
+                                <select id="battle-player-card" class="w-full border border-gray-300 rounded px-3 py-2">
+                                    <!-- Player's cards will be populated here -->
+                                </select>
+                            </div>
+                            <div class="text-center my-4 md:my-0">
+                                <button id="start-battle-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-full">
+                                    BATTLE!
+                                </button>
+                            </div>
+                            <div class="w-full md:w-1/3">
+                                <h3 class="font-medium text-gray-700 mb-2">Opponent's Card</h3>
+                                <div id="opponent-card-display" class="bg-gray-100 border border-gray-300 rounded px-3 py-2 text-center">
+                                    Select your card first
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Battle Results -->
+                        <div id="battle-results" class="hidden bg-gray-50 rounded-lg p-4">
+                            <h3 class="font-bold text-lg mb-2">Battle Results</h3>
+                            <div id="battle-outcome" class="mb-4"></div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div id="player-card-display"></div>
+                                <div id="opponent-result-card-display"></div>
+                            </div>
+                            <div id="battle-rewards" class="hidden bg-yellow-100 border-l-4 border-yellow-500 p-3">
+                                <p class="font-medium">You won <span id="reward-coins" class="font-bold">50</span> coins!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">Battle History</h2>
+                        <div id="battle-history" class="space-y-2">
+                            <!-- Battle history items will be added here -->
+                            <p class="text-gray-500 italic">No battles yet. Challenge someone!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shop Tab -->
+                <div id="shop-tab" class="tab-panel hidden">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">Card Shop</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- Booster Packs -->
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h3 class="font-bold text-lg mb-4 flex items-center">
+                                <i class="fas fa-gift text-indigo-500 mr-2"></i> Booster Packs
+                            </h3>
+                            <div class="space-y-4">
+                                <div class="booster-pack bg-gray-50 border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-medium">Starter Pack</h4>
+                                        <p class="text-sm text-gray-600">Contains 5 random cards (Common-Uncommon)</p>
+                                    </div>
+                                    <button class="buy-booster-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded" data-pack="starter" data-price="100">
+                                        Buy (100 <i class="fas fa-coins ml-1"></i>)
+                                    </button>
+                                </div>
+                                <div class="booster-pack bg-gray-50 border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-medium">Premium Pack</h4>
+                                        <p class="text-sm text-gray-600">Contains 3 random cards (Rare-Epic)</p>
+                                    </div>
+                                    <button class="buy-booster-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded" data-pack="premium" data-price="250">
+                                        Buy (250 <i class="fas fa-coins ml-1"></i>)
+                                    </button>
+                                </div>
+                                <div class="booster-pack bg-gray-50 border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-medium">Legendary Pack</h4>
+                                        <p class="text-sm text-gray-600">Contains 1 guaranteed Legendary card</p>
+                                    </div>
+                                    <button class="buy-booster-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded" data-pack="legendary" data-price="500">
+                                        Buy (500 <i class="fas fa-coins ml-1"></i>)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Individual Cards -->
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h3 class="font-bold text-lg mb-4 flex items-center">
+                                <i class="fas fa-star text-yellow-500 mr-2"></i> Featured Cards
+                            </h3>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-medium">Dragon Warrior</h4>
+                                        <p class="text-sm text-gray-600">Power: 85 | Defense: 60 | Speed: 70</p>
+                                    </div>
+                                    <button class="buy-card-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded" data-card="dragon_warrior" data-price="200">
+                                        Buy (200 <i class="fas fa-coins ml-1"></i>)
+                                    </button>
+                                </div>
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-medium">Mystic Mage</h4>
+                                        <p class="text-sm text-gray-600">Power: 60 | Defense: 75 | Speed: 50</p>
+                                    </div>
+                                    <button class="buy-card-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded" data-card="mystic_mage" data-price="180">
+                                        Buy (180 <i class="fas fa-coins ml-1"></i>)
+                                    </button>
+                                </div>
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-medium">Shadow Assassin</h4>
+                                        <p class="text-sm text-gray-600">Power: 70 | Defense: 50 | Speed: 90</p>
+                                    </div>
+                                    <button class="buy-card-btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded" data-card="shadow_assassin" data-price="220">
+                                        Buy (220 <i class="fas fa-coins ml-1"></i>)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Daily Reward -->
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-lg mb-1 flex items-center">
+                                    <i class="fas fa-calendar-day text-yellow-600 mr-2"></i> Daily Reward
+                                </h3>
+                                <p class="text-gray-600">Come back tomorrow for more coins!</p>
+                            </div>
+                            <button id="claim-daily-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded">
+                                Claim 50 <i class="fas fa-coins ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trades Tab -->
+                <div id="trades-tab" class="tab-panel hidden">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6">Trade Center</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Your Trade Offers -->
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h3 class="font-bold text-lg mb-4">Your Trade Offers</h3>
+                            <div id="your-trades" class="space-y-3">
+                                <p class="text-gray-500 italic">You haven't created any trade offers yet.</p>
+                            </div>
+                        </div>
+
+                        <!-- Create New Trade -->
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <h3 class="font-bold text-lg mb-4">Create New Trade</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-gray-700 text-sm font-bold mb-2" for="offer-card">Card to Offer</label>
+                                    <select id="offer-card" class="w-full border border-gray-300 rounded px-3 py-2">
+                                        <!-- Player's cards will be populated here -->
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-gray-700 text-sm font-bold mb-2" for="request-card">Card to Request</label>
+                                    <select id="request-card" class="w-full border border-gray-300 rounded px-3 py-2">
+                                        <!-- All possible cards will be populated here -->
+                                    </select>
+                                </div>
+                                <button id="create-trade-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
+                                    Create Trade Offer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Available Trades -->
+                    <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                        <h3 class="font-bold text-lg mb-4">Available Trades</h3>
+                        <div id="available-trades" class="space-y-3">
+                            <p class="text-gray-500 italic">No trade offers available at the moment.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Detail Modal -->
+            <div id="card-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+                <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 id="modal-card-name" class="text-xl font-bold"></h3>
+                        <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="modal-card-content" class="mb-4">
+                        <!-- Card details will be shown here -->
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button id="use-card-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded hidden">
+                            Use in Battle
+                        </button>
+                        <button id="trade-card-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded hidden">
+                            Offer for Trade
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Booster Opening Animation -->
+            <div id="booster-animation" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 hidden">
+                <div class="text-center text-white">
+                    <div class="booster-pack bg-white text-indigo-800 rounded-full w-32 h-32 flex items-center justify-center mx-auto mb-8">
+                        <i class="fas fa-gift text-4xl"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold mb-4">Opening Booster Pack...</h2>
+                    <div id="booster-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 max-w-4xl mx-auto">
+                        <!-- Cards will appear here during animation -->
+                    </div>
+                    <button id="close-booster-btn" class="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full hidden">
+                        Awesome! (Click to continue)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game Data
+        const cardDatabase = {
+            // Common Cards
+            warrior: {
+                id: 'warrior',
+                name: 'Brave Warrior',
+                image: '👨‍⚔️',
+                rarity: 'common',
+                power: 60,
+                defense: 50,
+                speed: 40,
+                description: 'A brave warrior ready for battle.'
+            },
+            archer: {
+                id: 'archer',
+                name: 'Elven Archer',
+                image: '🏹',
+                rarity: 'common',
+                power: 50,
+                defense: 30,
+                speed: 70,
+                description: 'Quick and precise with a bow.'
+            },
+            mage: {
+                id: 'mage',
+                name: 'Apprentice Mage',
+                image: '🧙‍♂️',
+                rarity: 'common',
+                power: 70,
+                defense: 20,
+                speed: 30,
+                description: 'Learning the arcane arts.'
+            },
+            knight: {
+                id: 'knight',
+                name: 'Royal Knight',
+                image: '🛡️',
+                rarity: 'common',
+                power: 55,
+                defense: 65,
+                speed: 25,
+                description: 'Protector of the realm.'
+            },
+            rogue: {
+                id: 'rogue',
+                name: 'Sneaky Rogue',
+                image: '🗡️',
+                rarity: 'common',
+                power: 45,
+                defense: 30,
+                speed: 80,
+                description: 'Strikes from the shadows.'
+            },
+            
+            // Uncommon Cards
+            dragon_warrior: {
+                id: 'dragon_warrior',
+                name: 'Dragon Warrior',
+                image: '🐉',
+                rarity: 'uncommon',
+                power: 85,
+                defense: 60,
+                speed: 70,
+                description: 'Trained by dragons themselves.'
+            },
+            mystic_mage: {
+                id: 'mystic_mage',
+                name: 'Mystic Mage',
+                image: '🔮',
+                rarity: 'uncommon',
+                power: 60,
+                defense: 75,
+                speed: 50,
+                description: 'Master of mystical energies.'
+            },
+            shadow_assassin: {
+                id: 'shadow_assassin',
+                name: 'Shadow Assassin',
+                image: '👤',
+                rarity: 'uncommon',
+                power: 70,
+                defense: 50,
+                speed: 90,
+                description: 'Strikes without being seen.'
+            },
+            beast_rider: {
+                id: 'beast_rider',
+                name: 'Beast Rider',
+                image: '🐺',
+                rarity: 'uncommon',
+                power: 75,
+                defense: 55,
+                speed: 65,
+                description: 'Commands fearsome beasts.'
+            },
+            elementalist: {
+                id: 'elementalist',
+                name: 'Elementalist',
+                image: '🌪️',
+                rarity: 'uncommon',
+                power: 80,
+                defense: 40,
+                speed: 60,
+                description: 'Controls the primal elements.'
+            },
+            
+            // Rare Cards
+            phoenix: {
+                id: 'phoenix',
+                name: 'Phoenix',
+                image: '🔥',
+                rarity: 'rare',
+                power: 90,
+                defense: 70,
+                speed: 80,
+                description: 'Reborn from its own ashes.'
+            },
+            frost_giant: {
+                id: 'frost_giant',
+                name: 'Frost Giant',
+                image: '❄️',
+                rarity: 'rare',
+                power: 95,
+                defense: 85,
+                speed: 30,
+                description: 'Towering force of winter.'
+            },
+            storm_caller: {
+                id: 'storm_caller',
+                name: 'Storm Caller',
+                image: '⚡',
+                rarity: 'rare',
+                power: 85,
+                defense: 60,
+                speed: 95,
+                description: 'Commands the fury of storms.'
+            },
+            celestial_guardian: {
+                id: 'celestial_guardian',
+                name: 'Celestial Guardian',
+                image: '🌟',
+                rarity: 'rare',
+                power: 75,
+                defense: 95,
+                speed: 50,
+                description: 'Protector from the stars.'
+            },
+            necromancer: {
+                id: 'necromancer',
+                name: 'Necromancer',
+                image: '💀',
+                rarity: 'rare',
+                power: 95,
+                defense: 50,
+                speed: 40,
+                description: 'Raises the dead to fight.'
+            },
+            
+            // Epic Cards
+            dragon_king: {
+                id: 'dragon_king',
+                name: 'Dragon King',
+                image: '🐲',
+                rarity: 'epic',
+                power: 110,
+                defense: 90,
+                speed: 80,
+                description: 'The mightiest of all dragons.'
+            },
+            archmage: {
+                id: 'archmage',
+                name: 'Archmage',
+                image: '🌀',
+                rarity: 'epic',
+                power: 120,
+                defense: 60,
+                speed: 70,
+                description: 'Master of all magical arts.'
+            },
+            titan: {
+                id: 'titan',
+                name: 'Titan',
+                image: '🏔️',
+                rarity: 'epic',
+                power: 130,
+                defense: 100,
+                speed: 30,
+                description: 'Ancient being of immense power.'
+            },
+            void_walker: {
+                id: 'void_walker',
+                name: 'Void Walker',
+                image: '🌌',
+                rarity: 'epic',
+                power: 100,
+                defense: 80,
+                speed: 110,
+                description: 'Moves between dimensions.'
+            },
+            celestial_dragon: {
+                id: 'celestial_dragon',
+                name: 'Celestial Dragon',
+                image: '🌠',
+                rarity: 'epic',
+                power: 115,
+                defense: 95,
+                speed: 90,
+                description: 'Dragon blessed by the cosmos.'
+            },
+            
+            // Legendary Cards
+            god_of_war: {
+                id: 'god_of_war',
+                name: 'God of War',
+                image: '⚔️',
+                rarity: 'legendary',
+                power: 150,
+                defense: 120,
+                speed: 100,
+                description: 'Deity of battle and conquest.'
+            },
+            creator: {
+                id: 'creator',
+                name: 'The Creator',
+                image: '🌎',
+                rarity: 'legendary',
+                power: 140,
+                defense: 140,
+                speed: 80,
+                description: 'Being who shaped the world.'
+            },
+            infinity_mage: {
+                id: 'infinity_mage',
+                name: 'Infinity Mage',
+                image: '♾️',
+                rarity: 'legendary',
+                power: 160,
+                defense: 90,
+                speed: 90,
+                description: 'Wielder of infinite magic.'
+            },
+            chaos_entity: {
+                id: 'chaos_entity',
+                name: 'Chaos Entity',
+                image: '🌪️',
+                rarity: 'legendary',
+                power: 170,
+                defense: 70,
+                speed: 120,
+                description: 'Embodiment of pure chaos.'
+            },
+            omniscient: {
+                id: 'omniscient',
+                name: 'The Omniscient',
+                image: '👁️',
+                rarity: 'legendary',
+                power: 130,
+                defense: 130,
+                speed: 130,
+                description: 'Knows all, sees all.'
+            }
+        };
+
+        const boosterPacks = {
+            starter: {
+                name: 'Starter Pack',
+                price: 100,
+                cards: 5,
+                rarityDistribution: {
+                    common: 70,
+                    uncommon: 30
+                }
+            },
+            premium: {
+                name: 'Premium Pack',
+                price: 250,
+                cards: 3,
+                rarityDistribution: {
+                    rare: 70,
+                    epic: 30
+                }
+            },
+            legendary: {
+                name: 'Legendary Pack',
+                price: 500,
+                cards: 1,
+                guaranteedRarity: 'legendary'
+            }
+        };
+
+        // Game State
+        let currentUser = null;
+        let users = JSON.parse(localStorage.getItem('cardGameUsers')) || {};
+        let gameState = JSON.parse(localStorage.getItem('cardGameState')) || {
+            battles: [],
+            trades: [],
+            lastDailyReward: null
+        };
+
+        // DOM Elements
+        const loginScreen = document.getElementById('login-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const registerBtn = document.getElementById('register-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userGreeting = document.getElementById('user-greeting');
+        const coinsDisplay = document.getElementById('coins-count');
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabPanels = document.querySelectorAll('.tab-panel');
+        const collectionGrid = document.getElementById('collection-grid');
+        const collectionFilter = document.getElementById('collection-filter');
+        const battlePlayerCard = document.getElementById('battle-player-card');
+        const startBattleBtn = document.getElementById('start-battle-btn');
+        const opponentCardDisplay = document.getElementById('opponent-card-display');
+        const battleResults = document.getElementById('battle-results');
+        const battleOutcome = document.getElementById('battle-outcome');
+        const playerCardDisplay = document.getElementById('player-card-display');
+        const opponentResultCardDisplay = document.getElementById('opponent-result-card-display');
+        const battleRewards = document.getElementById('battle-rewards');
+        const battleHistory = document.getElementById('battle-history');
+        const claimDailyBtn = document.getElementById('claim-daily-btn');
+        const buyBoosterBtns = document.querySelectorAll('.buy-booster-btn');
+        const buyCardBtns = document.querySelectorAll('.buy-card-btn');
+        const cardModal = document.getElementById('card-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const modalCardName = document.getElementById('modal-card-name');
+        const modalCardContent = document.getElementById('modal-card-content');
+        const useCardBtn = document.getElementById('use-card-btn');
+        const tradeCardBtn = document.getElementById('trade-card-btn');
+        const boosterAnimation = document.getElementById('booster-animation');
+        const boosterCards = document.getElementById('booster-cards');
+        const closeBoosterBtn = document.getElementById('close-booster-btn');
+        const offerCardSelect = document.getElementById('offer-card');
+        const requestCardSelect = document.getElementById('request-card');
+        const createTradeBtn = document.getElementById('create-trade-btn');
+        const yourTrades = document.getElementById('your-trades');
+        const availableTrades = document.getElementById('available-trades');
+
+        // Initialize the game
+        function init() {
+            // Set up event listeners
+            loginBtn.addEventListener('click', handleLogin);
+            registerBtn.addEventListener('click', handleRegister);
+            logoutBtn.addEventListener('click', handleLogout);
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => switchTab(button.dataset.tab));
+            });
+            
+            collectionFilter.addEventListener('change', renderCollection);
+            
+            startBattleBtn.addEventListener('click', startBattle);
+            claimDailyBtn.addEventListener('click', claimDailyReward);
+            
+            buyBoosterBtns.forEach(btn => {
+                btn.addEventListener('click', () => buyBoosterPack(btn.dataset.pack));
+            });
+            
+            buyCardBtns.forEach(btn => {
+                btn.addEventListener('click', () => buyIndividualCard(btn.dataset.card));
+            });
+            
+            closeModalBtn.addEventListener('click', () => cardModal.classList.add('hidden'));
+            closeBoosterBtn.addEventListener('click', () => {
+                boosterAnimation.classList.add('hidden');
+                renderCollection();
+            });
+            
+            createTradeBtn.addEventListener('click', createTradeOffer);
+            
+            // Check if a user is already logged in (from localStorage)
+            const loggedInUser = localStorage.getItem('cardGameCurrentUser');
+            if (loggedInUser && users[loggedInUser]) {
+                currentUser = users[loggedInUser];
+                showGameScreen();
+            }
+        }
+
+        // User Authentication
+        function handleLogin() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
+            
+            if (!users[username]) {
+                alert('Username not found');
+                return;
+            }
+            
+            if (users[username].password !== password) {
+                alert('Incorrect password');
+                return;
+            }
+            
+            currentUser = users[username];
+            localStorage.setItem('cardGameCurrentUser', username);
+            showGameScreen();
+        }
+
+        function handleRegister() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
+            
+            if (users[username]) {
+                alert('Username already exists');
+                return;
+            }
+            
+            // Create new user with starter cards and coins
+            users[username] = {
+                username,
+                password,
+                coins: 100,
+                cards: [
+                    'warrior', 'archer', 'mage', 'knight', 'rogue'
+                ],
+                battles: []
+            };
+            
+            localStorage.setItem('cardGameUsers', JSON.stringify(users));
+            alert('Registration successful! You can now login.');
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            localStorage.removeItem('cardGameCurrentUser');
+            loginScreen.classList.remove('hidden');
+            gameScreen.classList.add('hidden');
+            usernameInput.value = '';
+            passwordInput.value = '';
+        }
+
+        // UI Navigation
+        function showGameScreen() {
+            loginScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            updateUserInfo();
+            switchTab('collection');
+        }
+
+        function switchTab(tabName) {
+            // Update active tab button
+            tabButtons.forEach(button => {
+                if (button.dataset.tab === tabName) {
+                    button.classList.add('border-indigo-600', 'text-indigo-600');
+                    button.classList.remove('border-transparent');
+                } else {
+                    button.classList.remove('border-indigo-600', 'text-indigo-600');
+                    button.classList.add('border-transparent');
+                }
+            });
+            
+            // Show the selected tab panel
+            tabPanels.forEach(panel => {
+                if (panel.id === `${tabName}-tab`) {
+                    panel.classList.remove('hidden');
+                    
+                    // Load tab-specific content
+                    if (tabName === 'collection') {
+                        renderCollection();
+                    } else if (tabName === 'battle') {
+                        setupBattleTab();
+                    } else if (tabName === 'trades') {
+                        setupTradesTab();
+                    }
+                } else {
+                    panel.classList.add('hidden');
+                }
+            });
+        }
+
+        function updateUserInfo() {
+            userGreeting.textContent = `Welcome, ${currentUser.username}!`;
+            coinsDisplay.textContent = currentUser.coins;
+        }
+
+        // Collection Management
+        function renderCollection() {
+            collectionGrid.innerHTML = '';
+            
+            const filter = collectionFilter.value;
+            let cardsToShow = [];
+            
+            if (filter === 'all') {
+                cardsToShow = currentUser.cards;
+            } else {
+                cardsToShow = currentUser.cards.filter(cardId => {
+                    return cardDatabase[cardId].rarity === filter;
+                });
+            }
+            
+            if (cardsToShow.length === 0) {
+                collectionGrid.innerHTML = '<p class="text-gray-500 col-span-full text-center py-8">No cards match your filter</p>';
+                return;
+            }
+            
+            // Count card duplicates
+            const cardCounts = {};
+            cardsToShow.forEach(cardId => {
+                cardCounts[cardId] = (cardCounts[cardId] || 0) + 1;
+            });
+            
+            // Display unique cards with counts
+            const uniqueCards = [...new Set(cardsToShow)];
+            uniqueCards.forEach(cardId => {
+                const card = cardDatabase[cardId];
+                const count = cardCounts[cardId];
+                
+                const cardElement = document.createElement('div');
+                cardElement.className = `card bg-white rounded-lg overflow-hidden shadow-md cursor-pointer transition-transform hover:scale-105 card-rarity-${card.rarity}`;
+                cardElement.innerHTML = `
+                    <div class="p-4">
+                        <div class="text-4xl text-center mb-2">${card.image}</div>
+                        <h3 class="font-bold text-center">${card.name}</h3>
+                        <p class="text-xs text-gray-500 text-center">${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}</p>
+                        <div class="mt-2 text-xs">
+                            <div class="flex justify-between mb-1">
+                                <span>Power:</span>
+                                <span>${card.power}</span>
+                            </div>
+                            <div class="stat-bar" style="width: ${card.power}%"></div>
+                            
+                            <div class="flex justify-between mb-1 mt-1">
+                                <span>Defense:</span>
+                                <span>${card.defense}</span>
+                            </div>
+                            <div class="stat-bar" style="width: ${card.defense}%"></div>
+                            
+                            <div class="flex justify-between mb-1 mt-1">
+                                <span>Speed:</span>
+                                <span>${card.speed}</span>
+                            </div>
+                            <div class="stat-bar" style="width: ${card.speed}%"></div>
+                        </div>
+                        ${count > 1 ? `<div class="absolute top-2 right-2 bg-indigo-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">${count}</div>` : ''}
+                    </div>
+                `;
+                
+                cardElement.addEventListener('click', () => showCardDetails(cardId));
+                collectionGrid.appendChild(cardElement);
+            });
+        }
+
+        function showCardDetails(cardId) {
+            const card = cardDatabase[cardId];
+            modalCardName.textContent = card.name;
+            
+            modalCardContent.innerHTML = `
+                <div class="flex flex-col md:flex-row gap-4">
+                    <div class="text-8xl text-center md:text-left ${card.rarity === 'legendary' ? 'animate-pulse' : ''}">
+                        ${card.image}
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-600 mb-4">${card.description}</p>
+                        <div class="space-y-2">
+                            <div>
+                                <div class="flex justify-between text-sm">
+                                    <span>Power:</span>
+                                    <span>${card.power}</span>
+                                </div>
+                                <div class="stat-bar" style="width: ${card.power}%"></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm">
+                                    <span>Defense:</span>
+                                    <span>${card.defense}</span>
+                                </div>
+                                <div class="stat-bar" style="width: ${card.defense}%"></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm">
+                                    <span>Speed:</span>
+                                    <span>${card.speed}</span>
+                                </div>
+                                <div class="stat-bar" style="width: ${card.speed}%"></div>
+                            </div>
+                            <div class="pt-2">
+                                <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-${getRarityColor(card.rarity)}-100 text-${getRarityColor(card.rarity)}-800">
+                                    ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Show appropriate buttons based on context
+            useCardBtn.classList.add('hidden');
+            tradeCardBtn.classList.add('hidden');
+            
+            // If viewing from battle tab, show "Use in Battle" button
+            if (document.querySelector('.tab-btn.border-indigo-600').dataset.tab === 'battle') {
+                useCardBtn.classList.remove('hidden');
+                useCardBtn.onclick = () => {
+                    battlePlayerCard.value = cardId;
+                    cardModal.classList.add('hidden');
+                };
+            }
+            
+            // If viewing from collection tab, show "Offer for Trade" button
+            if (document.querySelector('.tab-btn.border-indigo-600').dataset.tab === 'collection') {
+                tradeCardBtn.classList.remove('hidden');
+                tradeCardBtn.onclick = () => {
+                    switchTab('trades');
+                    offerCardSelect.value = cardId;
+                    cardModal.classList.add('hidden');
+                };
+            }
+            
+            cardModal.classList.remove('hidden');
+        }
+
+        function getRarityColor(rarity) {
+            const colors = {
+                common: 'gray',
+                uncommon: 'green',
+                rare: 'blue',
+                epic: 'purple',
+                legendary: 'yellow'
+            };
+            return colors[rarity] || 'gray';
+        }
+
+        // Battle System
+        function setupBattleTab() {
+            // Populate player's card select
+            battlePlayerCard.innerHTML = '';
+            const uniqueCards = [...new Set(currentUser.cards)];
+            
+            if (uniqueCards.length === 0) {
+                battlePlayerCard.innerHTML = '<option value="">No cards available</option>';
+                startBattleBtn.disabled = true;
+                return;
+            }
+            
+            uniqueCards.forEach(cardId => {
+                const card = cardDatabase[cardId];
+                const option = document.createElement('option');
+                option.value = cardId;
+                option.textContent = `${card.name} (P:${card.power} D:${card.defense} S:${card.speed})`;
+                battlePlayerCard.appendChild(option);
+            });
+            
+            // Reset battle UI
+            opponentCardDisplay.textContent = 'Select your card first';
+            battleResults.classList.add('hidden');
+            
+            // Load battle history
+            renderBattleHistory();
+        }
+
+        function startBattle() {
+            const playerCardId = battlePlayerCard.value;
+            if (!playerCardId) {
+                alert('Please select a card to battle with');
+                return;
+            }
+            
+            // Select a random opponent card (not from player's collection)
+            const allCardIds = Object.keys(cardDatabase);
+            const opponentCardId = allCardIds[Math.floor(Math.random() * allCardIds.length)];
+            
+            // Get card objects
+            const playerCard = cardDatabase[playerCardId];
+            const opponentCard = cardDatabase[opponentCardId];
+            
+            // Display opponent's card
+            opponentCardDisplay.textContent = `${opponentCard.name} (Power: ???, Defense: ???, Speed: ???)`;
+            
+            // Determine battle attribute (randomly select one)
+            const attributes = ['power', 'defense', 'speed'];
+            const battleAttribute = attributes[Math.floor(Math.random() * attributes.length)];
+            
+            // Compare values
+            const playerValue = playerCard[battleAttribute];
+            const opponentValue = opponentCard[battleAttribute];
+            
+            // Determine winner
+            let outcome, reward;
+            if (playerValue > opponentValue) {
+                outcome = 'You win!';
+                reward = 50;
+            } else if (playerValue < opponentValue) {
+                outcome = 'You lose!';
+                reward = 0;
+            } else {
+                outcome = 'It\'s a tie!';
+                reward = 10;
+            }
+            
+            // Display results after a short delay (for suspense)
+            setTimeout(() => {
+                battleResults.classList.remove('hidden');
+                battleOutcome.innerHTML = `
+                    <p class="font-bold text-lg ${outcome.includes('win') ? 'text-green-600' : outcome.includes('lose') ? 'text-red-600' : 'text-yellow-600'}">
+                        ${outcome}
+                    </p>
+                    <p class="text-sm">Battle decided by <span class="font-bold">${battleAttribute.charAt(0).toUpperCase() + battleAttribute.slice(1)}</span></p>
+                `;
+                
+                // Show cards with stats
+                playerCardDisplay.innerHTML = createBattleCardHTML(playerCard, playerValue, battleAttribute);
+                opponentResultCardDisplay.innerHTML = createBattleCardHTML(opponentCard, opponentValue, battleAttribute);
+                
+                // Handle rewards
+                if (reward > 0) {
+                    battleRewards.classList.remove('hidden');
+                    document.getElementById('reward-coins').textContent = reward;
+                    currentUser.coins += reward;
+                    updateUserInfo();
+                    saveUserData();
+                } else {
+                    battleRewards.classList.add('hidden');
+                }
+                
+                // Record battle
+                const battleRecord = {
+                    date: new Date().toISOString(),
+                    playerCard: playerCardId,
+                    opponentCard: opponentCardId,
+                    attribute: battleAttribute,
+                    outcome: outcome,
+                    reward: reward
+                };
+                
+                currentUser.battles.push(battleRecord);
+                gameState.battles.push({
+                    username: currentUser.username,
+                    ...battleRecord
+                });
+                
+                saveGameState();
+                saveUserData();
+                
+                // Update battle history
+                renderBattleHistory();
+            }, 1500);
+        }
+
+        function createBattleCardHTML(card, battleValue, battleAttribute) {
+            return `
+                <div class="bg-white p-4 rounded-lg shadow-sm border ${card.rarity === 'legendary' ? 'border-yellow-400' : 'border-gray-200'}">
+                    <div class="text-5xl text-center mb-2">${card.image}</div>
+                    <h3 class="font-bold text-center">${card.name}</h3>
+                    <p class="text-xs text-center text-gray-500 mb-3">${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}</p>
+                    
+                    <div class="space-y-1 text-sm">
+                        <div class="flex justify-between ${battleAttribute === 'power' ? 'font-bold text-indigo-600' : ''}">
+                            <span>Power:</span>
+                            <span>${card.power}</span>
+                        </div>
+                        <div class="flex justify-between ${battleAttribute === 'defense' ? 'font-bold text-indigo-600' : ''}">
+                            <span>Defense:</span>
+                            <span>${card.defense}</span>
+                        </div>
+                        <div class="flex justify-between ${battleAttribute === 'speed' ? 'font-bold text-indigo-600' : ''}">
+                            <span>Speed:</span>
+                            <span>${card.speed}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 pt-3 border-t border-gray-200 text-center">
+                        <p class="text-xs text-gray-500">${battleAttribute}:</p>
+                        <p class="font-bold text-lg">${battleValue}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderBattleHistory() {
+            battleHistory.innerHTML = '';
+            
+            if (currentUser.battles.length === 0) {
+                battleHistory.innerHTML = '<p class="text-gray-500 italic">No battles yet. Challenge someone!</p>';
+                return;
+            }
+            
+            // Show only the last 5 battles
+            const recentBattles = [...currentUser.battles].reverse().slice(0, 5);
+            
+            recentBattles.forEach(battle => {
+                const playerCard = cardDatabase[battle.playerCard];
+                const opponentCard = cardDatabase[battle.opponentCard];
+                
+                const battleElement = document.createElement('div');
+                battleElement.className = 'bg-gray-50 p-3 rounded-lg';
+                battleElement.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">${playerCard.image}</span>
+                            <span class="font-medium">vs</span>
+                            <span class="text-xl">${opponentCard.image}</span>
+                        </div>
+                        <span class="text-sm ${battle.outcome.includes('win') ? 'text-green-600' : battle.outcome.includes('lose') ? 'text-red-600' : 'text-yellow-600'} font-bold">
+                            ${battle.outcome}
+                        </span>
+                    </div>
+                    <div class="mt-1 text-xs text-gray-500">
+                        ${new Date(battle.date).toLocaleString()} • ${battle.attribute} • ${battle.reward > 0 ? '+' + battle.reward + ' coins' : 'no reward'}
+                    </div>
+                `;
+                battleHistory.appendChild(battleElement);
+            });
+        }
+
+        // Shop System
+        function claimDailyReward() {
+            const today = new Date().toDateString();
+            
+            if (gameState.lastDailyReward === today) {
+                alert('You already claimed your daily reward today. Come back tomorrow!');
+                return;
+            }
+            
+            currentUser.coins += 50;
+            gameState.lastDailyReward = today;
+            
+            updateUserInfo();
+            saveUserData();
+            saveGameState();
+            
+            // Show animation/confirmation
+            claimDailyBtn.innerHTML = '<i class="fas fa-check mr-1"></i> Claimed!';
+            claimDailyBtn.disabled = true;
+            claimDailyBtn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+            claimDailyBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+            
+            setTimeout(() => {
+                claimDailyBtn.innerHTML = 'Claim 50 <i class="fas fa-coins ml-1"></i>';
+                claimDailyBtn.disabled = false;
+                claimDailyBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                claimDailyBtn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+            }, 2000);
+        }
+
+        function buyBoosterPack(packType) {
+            const pack = boosterPacks[packType];
+            
+            if (currentUser.coins < pack.price) {
+                alert(`You don't have enough coins. You need ${pack.price} but only have ${currentUser.coins}.`);
+                return;
+            }
+            
+            // Deduct coins
+            currentUser.coins -= pack.price;
+            updateUserInfo();
+            saveUserData();
+            
+            // Generate cards for the booster
+            const newCards = [];
+            
+            for (let i = 0; i < pack.cards; i++) {
+                let cardId;
+                
+                if (pack.guaranteedRarity) {
+                    // For legendary pack, just get any legendary card
+                    const legendaryCards = Object.keys(cardDatabase).filter(id => 
+                        cardDatabase[id].rarity === pack.guaranteedRarity
+                    );
+                    cardId = legendaryCards[Math.floor(Math.random() * legendaryCards.length)];
+                } else {
+                    // For other packs, use the rarity distribution
+                    const rarityRoll = Math.random() * 100;
+                    let selectedRarity;
+                    
+                    if (rarityRoll < pack.rarityDistribution.common) {
+                        selectedRarity = 'common';
+                    } else {
+                        selectedRarity = 'uncommon';
+                    }
+                    
+                    // For premium pack, adjust the rarities
+                    if (packType === 'premium') {
+                        if (rarityRoll < pack.rarityDistribution.rare) {
+                            selectedRarity = 'rare';
+                        } else {
+                            selectedRarity = 'epic';
+                        }
+                    }
+                    
+                    // Get a random card of the selected rarity
+                    const cardsOfRarity = Object.keys(cardDatabase).filter(id => 
+                        cardDatabase[id].rarity === selectedRarity
+                    );
+                    cardId = cardsOfRarity[Math.floor(Math.random() * cardsOfRarity.length)];
+                }
+                
+                newCards.push(cardId);
+                currentUser.cards.push(cardId);
+            }
+            
+            // Show booster opening animation
+            showBoosterAnimation(newCards);
+        }
+
+        function showBoosterAnimation(cardIds) {
+            boosterCards.innerHTML = '';
+            boosterAnimation.classList.remove('hidden');
+            closeBoosterBtn.classList.add('hidden');
+            
+            // Show placeholder cards first
+            for (let i = 0; i < cardIds.length; i++) {
+                const placeholder = document.createElement('div');
+                placeholder.className = 'bg-gray-800 rounded-lg h-32 flex items-center justify-center text-white text-4xl';
+                placeholder.innerHTML = '?';
+                boosterCards.appendChild(placeholder);
+            }
+            
+            // Reveal cards one by one
+            let revealIndex = 0;
+            const revealInterval = setInterval(() => {
+                if (revealIndex >= cardIds.length) {
+                    clearInterval(revealInterval);
+                    closeBoosterBtn.classList.remove('hidden');
+                    return;
+                }
+                
+                const cardId = cardIds[revealIndex];
+                const card = cardDatabase[cardId];
+                
+                const cardElement = document.createElement('div');
+                cardElement.className = `bg-white rounded-lg p-4 shadow-md card-rarity-${card.rarity}`;
+                cardElement.innerHTML = `
+                    <div class="text-5xl text-center mb-2">${card.image}</div>
+                    <h3 class="font-bold text-center text-sm">${card.name}</h3>
+                    <p class="text-xs text-center text-gray-500">${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}</p>
+                `;
+                
+                boosterCards.children[revealIndex].replaceWith(cardElement);
+                revealIndex++;
+            }, 1000);
+        }
+
+        function buyIndividualCard(cardId) {
+            const card = cardDatabase[cardId];
+            const price = parseInt(document.querySelector(`.buy-card-btn[data-card="${cardId}"]`).dataset.price);
+            
+            if (currentUser.coins < price) {
+                alert(`You don't have enough coins. You need ${price} but only have ${currentUser.coins}.`);
+                return;
+            }
+            
+            currentUser.coins -= price;
+            currentUser.cards.push(cardId);
+            
+            updateUserInfo();
+            saveUserData();
+            
+            // Show confirmation
+            const btn = document.querySelector(`.buy-card-btn[data-card="${cardId}"]`);
+            btn.innerHTML = '<i class="fas fa-check mr-1"></i> Purchased!';
+            btn.disabled = true;
+            btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            btn.classList.add('bg-gray-400', 'cursor-not-allowed');
+            
+            setTimeout(() => {
+                btn.innerHTML = `Buy (${price} <i class="fas fa-coins ml-1"></i>)`;
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            }, 2000);
+        }
+
+        // Trade System
+        function setupTradesTab() {
+            // Populate offer card select (player's cards)
+            offerCardSelect.innerHTML = '';
+            const uniqueCards = [...new Set(currentUser.cards)];
+            
+            if (uniqueCards.length === 0) {
+                offerCardSelect.innerHTML = '<option value="">No cards available</option>';
+                createTradeBtn.disabled = true;
+            } else {
+                uniqueCards.forEach(cardId => {
+                    const card = cardDatabase[cardId];
+                    const option = document.createElement('option');
+                    option.value = cardId;
+                    option.textContent = `${card.name} (${card.rarity})`;
+                    offerCardSelect.appendChild(option);
+                });
+            }
+            
+            // Populate request card select (all cards)
+            requestCardSelect.innerHTML = '';
+            Object.keys(cardDatabase).forEach(cardId => {
+                const card = cardDatabase[cardId];
+                const option = document.createElement('option');
+                option.value = cardId;
+                option.textContent = `${card.name} (${card.rarity})`;
+                requestCardSelect.appendChild(option);
+            });
+            
+            // Render trade lists
+            renderYourTrades();
+            renderAvailableTrades();
+        }
+
+        function renderYourTrades() {
+            yourTrades.innerHTML = '';
+            
+            const yourOffers = gameState.trades.filter(trade => 
+                trade.fromUser === currentUser.username
+            );
+            
+            if (yourOffers.length === 0) {
+                yourTrades.innerHTML = '<p class="text-gray-500 italic">You haven\'t created any trade offers yet.</p>';
+                return;
+            }
+            
+            yourOffers.forEach(trade => {
+                const offeredCard = cardDatabase[trade.offeredCard];
+                const requestedCard = cardDatabase[trade.requestedCard];
+                
+                const tradeElement = document.createElement('div');
+                tradeElement.className = 'bg-gray-50 p-3 rounded-lg border border-gray-200';
+                tradeElement.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">${offeredCard.image}</span>
+                            <span class="text-gray-500">→</span>
+                            <span class="text-xl">${requestedCard.image}</span>
+                        </div>
+                        <button class="cancel-trade-btn text-red-500 hover:text-red-700 text-sm font-medium" data-trade-id="${trade.id}">
+                            Cancel
+                        </button>
+                    </div>
+                    <div class="mt-1 text-xs text-gray-500">
+                        Created ${new Date(trade.createdAt).toLocaleString()}
+                    </div>
+                `;
+                
+                tradeElement.querySelector('.cancel-trade-btn').addEventListener('click', (e) => {
+                    cancelTradeOffer(e.target.dataset.tradeId);
+                });
+                
+                yourTrades.appendChild(tradeElement);
+            });
+        }
+
+        function renderAvailableTrades() {
+            availableTrades.innerHTML = '';
+            
+            const otherTrades = gameState.trades.filter(trade => 
+                trade.fromUser !== currentUser.username
+            );
+            
+            if (otherTrades.length === 0) {
+                availableTrades.innerHTML = '<p class="text-gray-500 italic">No trade offers available at the moment.</p>';
+                return;
+            }
+            
+            otherTrades.forEach(trade => {
+                const offeredCard = cardDatabase[trade.offeredCard];
+                const requestedCard = cardDatabase[trade.requestedCard];
+                
+                // Check if player has the requested card
+                const hasRequestedCard = currentUser.cards.includes(trade.requestedCard);
+                
+                const tradeElement = document.createElement('div');
+                tradeElement.className = `bg-gray-50 p-3 rounded-lg border ${hasRequestedCard ? 'border-green-200' : 'border-gray-200'}`;
+                tradeElement.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">${offeredCard.image}</span>
+                            <span class="text-gray-500">→</span>
+                            <span class="text-xl">${requestedCard.image}</span>
+                        </div>
+                        <span class="text-xs bg-gray-200 rounded-full px-2 py-1">${trade.fromUser}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <div class="text-xs text-gray-500">
+                            ${new Date(trade.createdAt).toLocaleString()}
+                        </div>
+                        <button class="accept-trade-btn ${hasRequestedCard ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'} text-white text-sm font-medium py-1 px-3 rounded" 
+                                data-trade-id="${trade.id}" ${hasRequestedCard ? '' : 'disabled'}>
+                            ${hasRequestedCard ? 'Accept' : 'Need card'}
+                        </button>
+                    </div>
+                `;
+                
+                if (hasRequestedCard) {
+                    tradeElement.querySelector('.accept-trade-btn').addEventListener('click', (e) => {
+                        acceptTradeOffer(e.target.dataset.tradeId);
+                    });
+                }
+                
+                availableTrades.appendChild(tradeElement);
+            });
+        }
+
+        function createTradeOffer() {
+            const offeredCardId = offerCardSelect.value;
+            const requestedCardId = requestCardSelect.value;
+            
+            if (!offeredCardId || !requestedCardId) {
+                alert('Please select both cards for the trade');
+                return;
+            }
+            
+            if (offeredCardId === requestedCardId) {
+                alert('You cannot trade the same card');
+                return;
+            }
+            
+            // Create trade object
+            const trade = {
+                id: Date.now().toString(),
+                fromUser: currentUser.username,
+                offeredCard: offeredCardId,
+                requestedCard: requestedCardId,
+                createdAt: new Date().toISOString(),
+                status: 'pending'
+            };
+            
+            // Add to global trades
+            gameState.trades.push(trade);
+            saveGameState();
+            
+            // Update UI
+            setupTradesTab();
+            
+            // Show confirmation
+            createTradeBtn.innerHTML = '<i class="fas fa-check mr-1"></i> Offer Created!';
+            setTimeout(() => {
+                createTradeBtn.innerHTML = 'Create Trade Offer';
+            }, 2000);
+        }
+
+        function cancelTradeOffer(tradeId) {
+            gameState.trades = gameState.trades.filter(trade => trade.id !== tradeId);
+            saveGameState();
+            setupTradesTab();
+        }
+
+        function acceptTradeOffer(tradeId) {
+            const tradeIndex = gameState.trades.findIndex(trade => trade.id === tradeId);
+            if (tradeIndex === -1) return;
+            
+            const trade = gameState.trades[tradeIndex];
+            
+            // Check if the offering user still exists and has the card
+            if (!users[trade.fromUser] || !users[trade.fromUser].cards.includes(trade.offeredCard)) {
+                alert('This trade is no longer valid (the other user might not have the card anymore)');
+                gameState.trades.splice(tradeIndex, 1);
+                saveGameState();
+                setupTradesTab();
+                return;
+            }
+            
+            // Check if current user still has the requested card
+            if (!currentUser.cards.includes(trade.requestedCard)) {
+                alert('You no longer have the requested card');
+                setupTradesTab();
+                return;
+            }
+            
+            // Perform the trade:
+            // 1. Remove offered card from other user and add to current user
+            const otherUser = users[trade.fromUser];
+            const offeredCardIndex = otherUser.cards.indexOf(trade.offeredCard);
+            if (offeredCardIndex !== -1) {
+                otherUser.cards.splice(offeredCardIndex, 1);
+                currentUser.cards.push(trade.offeredCard);
+            }
+            
+            // 2. Remove requested card from current user and add to other user
+            const requestedCardIndex = currentUser.cards.indexOf(trade.requestedCard);
+            if (requestedCardIndex !== -1) {
+                currentUser.cards.splice(requestedCardIndex, 1);
+                otherUser.cards.push(trade.requestedCard);
+            }
+            
+            // 3. Mark trade as completed and remove from pending trades
+            trade.status = 'completed';
+            gameState.trades.splice(tradeIndex, 1);
+            
+            // Save all changes
+            saveUserData();
+            localStorage.setItem('cardGameUsers', JSON.stringify(users));
+            saveGameState();
+            
+            // Update UI
+            setupTradesTab();
+            renderCollection();
+            
+            // Show success message
+            const card = cardDatabase[trade.offeredCard];
+            alert(`Trade successful! You received ${card.name}`);
+        }
+
+        // Data Persistence
+        function saveUserData() {
+            users[currentUser.username] = currentUser;
+            localStorage.setItem('cardGameUsers', JSON.stringify(users));
+        }
+
+        function saveGameState() {
+            localStorage.setItem('cardGameState', JSON.stringify(gameState));
+        }
+
+        // Initialize the game
+        init();
+    </script>
+</body>
+</html>
